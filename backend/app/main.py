@@ -1,14 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from datetime import datetime, timezone
 
-from .db import SessionLocal
+from .db import SessionLocal, get_db
 from .models import Question, Choice, User
-from .schemas import QuestionCreate, QuestionOut, SignupIn, LoginIn, UserOut
-from .auth import COOKIE_NAME, create_access_token, decode_token, hash_password, verify_password
-
+from .auth import get_current_user_optional, require_user
 
 # NEW models
 from .models import ExamAttempt, ExamAttemptQuestion, ExamAnswer, AttemptMode
@@ -35,12 +33,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Include routers
+from .routers import me, auth_routers
+app.include_router(me.router)
+app.include_router(auth_routers.router)
+
 
 @app.get("/health")
 def health():
@@ -68,21 +65,6 @@ def list_questions(db: Session = Depends(get_db)):
 # ----------------------------
 # NEW: Exam attempt flow
 # ----------------------------
-
-def get_current_user_optional(request: Request, db: Session = Depends(get_db)) -> User | None:
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return None
-    user_id = decode_token(token)
-    if not user_id:
-        return None
-    return db.get(User, user_id)
-
-def require_user(user: User | None = Depends(get_current_user_optional)) -> User:
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
-
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -376,57 +358,6 @@ def review_attempt(attempt_id: int, db: Session = Depends(get_db)):
         )
     return out
 
-@app.post("/auth/signup", response_model=UserOut)
-def signup(payload: SignupIn, response: Response, db: Session = Depends(get_db)):
-    email = payload.email.lower().strip()
-    existing = db.scalar(select(User).where(User.email == email))
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    u = User(email=email, password_hash=hash_password(payload.password))
-    db.add(u)
-    db.commit()
-    db.refresh(u)
-
-    token = create_access_token(user_id=u.id)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=False,  # set True in production over HTTPS
-        path="/",
-        max_age=60 * 60 * 24 * 14,
-    )
-    return UserOut(id=u.id, email=u.email)
-
-@app.post("/auth/login", response_model=UserOut)
-def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
-    email = payload.email.lower().strip()
-    u = db.scalar(select(User).where(User.email == email))
-    if not u or not verify_password(payload.password, u.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
-
-    token = create_access_token(user_id=u.id)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-        path="/",
-        max_age=60 * 60 * 24 * 14,
-    )
-    return UserOut(id=u.id, email=u.email)
-
-@app.post("/auth/logout")
-def logout(response: Response):
-    response.delete_cookie(key=COOKIE_NAME, path="/")
-    return {"ok": True}
-
-@app.get("/auth/me", response_model=UserOut)
-def me(user: User = Depends(require_user)):
-    return UserOut(id=user.id, email=user.email)
 
 @app.get("/me/attempts", response_model=list[AttemptStartOut])
 def my_attempts(user: User = Depends(require_user), db: Session = Depends(get_db)):
