@@ -74,9 +74,9 @@ def _get_attempt_or_404(db: Session, attempt_id: int, user: User | None = None) 
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
 
-        if attempt.user_id is not None:
-            if not user or attempt.user_id != user.id:
-                raise HTTPException(status_code=403, detail="Forbidden")
+    if attempt.user_id is not None:
+        if not user or attempt.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
 
     return attempt
 
