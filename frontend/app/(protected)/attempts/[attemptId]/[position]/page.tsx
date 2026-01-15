@@ -50,9 +50,8 @@ export default function QuestionPage() {
   const questionCount = meta?.question_count ?? 150;
 
   const [answered, setAnswered] = useState<Set<number>>(new Set());
-  const [showUnanswered, setShowUnanswered] = useState(false);
   const answeredKey = `attempt:answered:${attemptId}`;
-
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -129,7 +128,7 @@ export default function QuestionPage() {
       const arr = JSON.parse(raw) as number[];
       setAnswered(new Set(arr));
     } catch {
-      // ignore
+      console.log("unanswered question was not saved!");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId]); // answeredKey depends on attemptId
@@ -162,19 +161,25 @@ export default function QuestionPage() {
   }
 
   function markAnswered(pos: number) {
-    const next = new Set(answered);
-    next.add(pos);
-    persistAnswered(next);
+    setAnswered((prev) => {
+      const next = new Set(prev);
+      next.add(pos);
+      localStorage.setItem(
+        answeredKey,
+        JSON.stringify(Array.from(next).sort((a, b) => a - b))
+      );
+      return next;
+    });
   }
 
-  useEffect(() => {
+  /*useEffect(() => {
     const raw = localStorage.getItem(answeredKey);
     if (!raw) return;
     try {
       setAnswered(new Set(JSON.parse(raw)));
     } catch {}
-  }, [answeredKey]);
-  
+  }, [answeredKey]);*/
+
   const unansweredList = useMemo(() => {
     const out: number[] = [];
     for (let i = 1; i <= questionCount; i++) {
@@ -185,7 +190,7 @@ export default function QuestionPage() {
 
   function onSubmitClick() {
     if (unansweredList.length > 0) {
-      setShowUnanswered(true);
+      setConfirmSubmit(true);
       return;
     }
     router.push(`/attempts/${attemptId}/result`);
@@ -213,6 +218,7 @@ export default function QuestionPage() {
           >
             Prev
           </button>
+
           <button
             disabled={!canNext}
             onClick={() =>
@@ -276,6 +282,57 @@ export default function QuestionPage() {
                 background: "#999",
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {confirmSubmit && unansweredList.length > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            border: "2px solid #c00",
+            borderRadius: 12,
+            background: "#fff5f5",
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>
+            You have {unansweredList.length} unanswered question
+            {unansweredList.length > 1 ? "s" : ""}.
+          </div>
+
+          <div style={{ marginBottom: 10, opacity: 0.9 }}>
+            Are you sure you want to submit the exam?
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={() =>
+                router.push(`/attempts/${attemptId}/${unansweredList[0]}`)
+              }
+              style={{ padding: "8px 12px", borderRadius: 8 }}
+            >
+              Go to first unanswered
+            </button>
+
+            <button
+              onClick={() => router.push(`/attempts/${attemptId}/result`)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: "#c00",
+                color: "#fff",
+              }}
+            >
+              Submit anyway
+            </button>
+
+            <button
+              onClick={() => setConfirmSubmit(false)}
+              style={{ padding: "8px 12px", borderRadius: 8 }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -358,75 +415,97 @@ export default function QuestionPage() {
               )}
             </div>
           )}
+        </section>
+      )}
+      {confirmSubmit && unansweredList.length > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 16,
+            border: "2px solid #c00",
+            borderRadius: 12,
+            background: "#fff5f5",
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>
+            You have {unansweredList.length} unanswered question
+            {unansweredList.length > 1 ? "s" : ""}.
+          </div>
 
-          {showUnanswered && unansweredList.length > 0 && (
-            <div
+          <div style={{ marginBottom: 10, opacity: 0.9 }}>
+            Are you sure you want to submit the exam?
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={() =>
+                router.push(`/attempts/${attemptId}/${unansweredList[0]}`)
+              }
+              style={{ padding: "8px 12px", borderRadius: 8 }}
+            >
+              Go to first unanswered
+            </button>
+
+            <button
+              onClick={() => router.push(`/attempts/${attemptId}/result`)}
               style={{
-                marginTop: 12,
-                padding: 12,
-                border: "1px solid #ddd",
-                borderRadius: 12,
+                padding: "8px 12px",
+                borderRadius: 8,
+                background: "#c00",
+                color: "#fff",
               }}
             >
-              <div style={{ fontWeight: 800 }}>
-                Unanswered questions: {unansweredList.length}
-              </div>
+              Submit anyway
+            </button>
 
-              <div
-                style={{
-                  marginTop: 10,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                }}
-              >
-                {unansweredList.map((qNum) => (
-                  <button
-                    key={qNum}
-                    onClick={() =>
-                      router.push(`/attempts/${attemptId}/${qNum}`)
-                    }
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      border: "1px solid #ccc",
-                      background: "#f9f9f9",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {qNum}
-                  </button>
-                ))}
-              </div>
+            <button
+              onClick={() => setConfirmSubmit(false)}
+              style={{ padding: "8px 12px", borderRadius: 8 }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
-              <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+      {unansweredList.length > 0 && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: 12,
+            border: "1px solid #ddd",
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>
+            Unanswered: {unansweredList.length}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {unansweredList.map((qNum) => {
+              const isCurrent = qNum === position;
+
+              return (
                 <button
-                  onClick={() =>
-                    router.push(`/attempts/${attemptId}/${unansweredList[0]}`)
-                  }
-                  style={{ padding: "8px 12px", borderRadius: 8 }}
+                  key={qNum}
+                  onClick={() => router.push(`/attempts/${attemptId}/${qNum}`)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: isCurrent ? "2px solid #333" : "1px solid #ccc",
+                    background: isCurrent ? "#eee" : "#f9f9f9",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    minWidth: 36,
+                  }}
+                  aria-label={`Go to question ${qNum}`}
                 >
-                  Go to first unanswered
+                  {qNum}
                 </button>
-
-                <button
-                  onClick={() => router.push(`/attempts/${attemptId}/result`)}
-                  style={{ padding: "8px 12px", borderRadius: 8 }}
-                >
-                  Submit anyway
-                </button>
-
-                <button
-                  onClick={() => setShowUnanswered(false)}
-                  style={{ padding: "8px 12px", borderRadius: 8 }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </section>
+              );
+            })}
+          </div>
+        </div>
       )}
     </main>
   );

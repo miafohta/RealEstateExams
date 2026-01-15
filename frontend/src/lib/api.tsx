@@ -1,5 +1,5 @@
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -7,7 +7,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
+      credentials: "include",
     },
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -76,6 +78,7 @@ export type SubmitOut = {
   breakdown_by_topic: Record<string, { correct: number; total: number }>;
   submitted_at: string;
 };
+export type ReviewChoiceOut = { label: string; text: string };
 
 export type ReviewItemOut = {
   position: number;
@@ -83,12 +86,67 @@ export type ReviewItemOut = {
   text: string;
   topic: string | null;
   subtopic: string | null;
+  choices: ReviewChoiceOut[];
   selected_label: string | null;
   correct_label: string | null;
   explanation: string | null;
 };
 
+export type UserOut = {
+  id: number;
+  email: string;
+};
+
+export type SignupIn = {
+  email: string;
+  password: string;
+};
+
+export type LoginIn = {
+  email: string;
+  password: string;
+};
+
+// Use whatever your backend returns for attempts.
+// If your backend returns {attempt_id: ...} keep that shape.
+// If it returns {id: ...} update this accordingly.
+export type AttemptSummary = {
+  attempt_id: number;
+  mode: "practice" | "timed";
+  exam_name: string | null;
+  question_count: number;
+  time_limit_seconds: number | null;
+  started_at: string;
+  submitted_at: string | null;
+  score_percent: number | null;
+  passed: boolean | null;
+};
+
+
 export const api = {
+  // --- auth ---
+  signup: (payload: SignupIn) =>
+    apiFetch<UserOut>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  login: (payload: LoginIn) =>
+    apiFetch<UserOut>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  logout: () =>
+    apiFetch<{ ok: boolean }>("/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({}), // keeps Content-Type consistent
+    }),
+
+  me: () => apiFetch<UserOut>("/auth/me"),
+
+  myAttempts: () => apiFetch<AttemptSummary[]>("/me/attempts"),
+
   startAttempt: (payload: AttemptStartIn) =>
     apiFetch<AttemptStartOut>("/attempts/start", {
       method: "POST",

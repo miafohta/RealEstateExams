@@ -31,10 +31,10 @@ export default function ReviewPage() {
       >
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>Review</h1>
         <button
-          onClick={() => router.push(`/attempts/${attemptId}/1`)}
+          onClick={() => router.push(`/`)}
           style={{ padding: "8px 12px", borderRadius: 8 }}
         >
-          Back to Questions
+          Home
         </button>
       </div>
 
@@ -73,6 +73,35 @@ export default function ReviewPage() {
                 <div style={{ marginTop: 10, opacity: 0.9 }}>
                   Your answer: <b>{it.selected_label ?? "-"}</b> &nbsp;|&nbsp;
                   Correct: <b>{it.correct_label ?? "-"}</b>
+                </div>
+                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                  {it.choices.map((c) => {
+                    const isSelected = it.selected_label === c.label;
+                    const isCorrect = it.correct_label === c.label;
+
+                    const border = isCorrect
+                      ? "2px solid #2e7d32"
+                      : isSelected
+                      ? "2px solid #c62828"
+                      : "1px solid #ddd";
+
+                    return (
+                      <div
+                        key={c.label}
+                        style={{ padding: 10, borderRadius: 10, border }}
+                      >
+                        <div style={{ fontWeight: 800 }}>{c.label}</div>
+                        <div style={{ opacity: 0.9 }}>{c.text}</div>
+                        <div style={{ marginTop: 6, opacity: 0.85 }}>
+                          {isCorrect
+                            ? "Correct"
+                            : isSelected
+                            ? "Your choice"
+                            : ""}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {it.explanation && (
