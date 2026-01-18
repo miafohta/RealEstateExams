@@ -1,14 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, func
 from datetime import datetime, timezone
 
-from .db import SessionLocal
+from .db import SessionLocal, get_db
 from .models import Question, Choice, User
-from .schemas import QuestionCreate, QuestionOut, SignupIn, LoginIn, UserOut
-from .auth import COOKIE_NAME, create_access_token, decode_token, hash_password, verify_password
-
+from .auth import get_current_user_optional, require_user
+from app.routers.me import get_current_user
 
 # NEW models
 from .models import ExamAttempt, ExamAttemptQuestion, ExamAnswer, AttemptMode
@@ -35,12 +34,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Include routers
+from .routers import me, auth_routers
+app.include_router(me.router)
+app.include_router(auth_routers.router)
+
 
 @app.get("/health")
 def health():
@@ -69,34 +67,34 @@ def list_questions(db: Session = Depends(get_db)):
 # NEW: Exam attempt flow
 # ----------------------------
 
-def get_current_user_optional(request: Request, db: Session = Depends(get_db)) -> User | None:
-    token = request.cookies.get(COOKIE_NAME)
-    if not token:
-        return None
-    user_id = decode_token(token)
-    if not user_id:
-        return None
-    return db.get(User, user_id)
-
-def require_user(user: User | None = Depends(get_current_user_optional)) -> User:
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return user
-
-
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
-def _get_attempt_or_404(db: Session, attempt_id: int, user: User | None = None) -> ExamAttempt:
+##def _get_attempt_or_404(db: Session, attempt_id: int, user: User | None = None) -> ExamAttempt:
     attempt = db.get(ExamAttempt, attempt_id)
     if not attempt:
         raise HTTPException(status_code=404, detail="Attempt not found")
 
-        if attempt.user_id is not None:
-            if not user or attempt.user_id != user.id:
-                raise HTTPException(status_code=403, detail="Forbidden")
+    if attempt.user_id is not None:
+        if not user or attempt.user_id != user.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    return attempt##
+
+def _get_attempt_or_404(
+    db: Session,
+    attempt_id: int,
+    user: User,
+) -> ExamAttempt:
+    attempt = db.get(ExamAttempt, attempt_id)
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    if attempt.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     return attempt
+
 
 def _ensure_not_expired(attempt: ExamAttempt):
     if attempt.mode != AttemptMode.timed:
@@ -121,20 +119,23 @@ def _ensure_not_expired(attempt: ExamAttempt):
 
 
 @app.post("/attempts/start", response_model=AttemptStartOut)
-def start_attempt(payload: AttemptStartIn, request: Request, db: Session = Depends(get_db)):
+def start_attempt(
+    payload: AttemptStartIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),   #require auth
+):
     try:
         mode_enum = AttemptMode(payload.mode)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid mode")
 
     try:
-        user = get_current_user_optional(request, db)
         attempt = create_attempt_with_balanced_questions(
             db,
             mode=mode_enum,
             exam_name=payload.exam_name,
             question_count=payload.question_count,
-            user_id=user.id if user else None,
+            user_id=user.id,  # always present
             time_limit_seconds=payload.time_limit_seconds,
         )
     except ValueError as e:
@@ -149,10 +150,9 @@ def start_attempt(payload: AttemptStartIn, request: Request, db: Session = Depen
         started_at=attempt.started_at,
     )
 
-
 @app.get("/attempts/{attempt_id}/questions/{position}", response_model=QuestionForAttemptOut)
-def get_attempt_question(attempt_id: int, position: int, db: Session = Depends(get_db)):
-    attempt = _get_attempt_or_404(db, attempt_id)
+def get_attempt_question(attempt_id: int, position: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
     _ensure_not_expired(attempt)
 
     aq_stmt = (
@@ -199,8 +199,8 @@ def get_attempt_question(attempt_id: int, position: int, db: Session = Depends(g
 
 
 @app.post("/attempts/{attempt_id}/answer")
-def answer_question(attempt_id: int, payload: AnswerIn, db: Session = Depends(get_db)):
-    attempt = _get_attempt_or_404(db, attempt_id)
+def answer_question(attempt_id: int, payload: AnswerIn, db: Session = Depends(get_db),  user: User = Depends(get_current_user)):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
     _ensure_not_expired(attempt)
     if attempt.submitted_at is not None:
         raise HTTPException(status_code=400, detail="Attempt already submitted")
@@ -242,8 +242,8 @@ from sqlalchemy import select, func
 from fastapi import HTTPException
 
 @app.post("/attempts/{attempt_id}/submit", response_model=SubmitOut)
-def submit_attempt(attempt_id: int, db: Session = Depends(get_db)):
-    attempt = _get_attempt_or_404(db, attempt_id)
+def submit_attempt(attempt_id: int, db: Session = Depends(get_db),  user: User = Depends(get_current_user)):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
     if attempt.submitted_at is not None:
         raise HTTPException(status_code=400, detail="Attempt already submitted")
 
@@ -314,8 +314,8 @@ def submit_attempt(attempt_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/attempts/{attempt_id}/review", response_model=list[ReviewItemOut])
-def review_attempt(attempt_id: int, db: Session = Depends(get_db)):
-    attempt = _get_attempt_or_404(db, attempt_id)
+def review_attempt(attempt_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
 
     # rule: in timed/exam mode, only after submit; in practice, always ok
     if attempt.mode == AttemptMode.timed and attempt.submitted_at is None:
@@ -376,57 +376,6 @@ def review_attempt(attempt_id: int, db: Session = Depends(get_db)):
         )
     return out
 
-@app.post("/auth/signup", response_model=UserOut)
-def signup(payload: SignupIn, response: Response, db: Session = Depends(get_db)):
-    email = payload.email.lower().strip()
-    existing = db.scalar(select(User).where(User.email == email))
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    u = User(email=email, password_hash=hash_password(payload.password))
-    db.add(u)
-    db.commit()
-    db.refresh(u)
-
-    token = create_access_token(user_id=u.id)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=False,  # set True in production over HTTPS
-        path="/",
-        max_age=60 * 60 * 24 * 14,
-    )
-    return UserOut(id=u.id, email=u.email)
-
-@app.post("/auth/login", response_model=UserOut)
-def login(payload: LoginIn, response: Response, db: Session = Depends(get_db)):
-    email = payload.email.lower().strip()
-    u = db.scalar(select(User).where(User.email == email))
-    if not u or not verify_password(payload.password, u.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
-
-    token = create_access_token(user_id=u.id)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-        path="/",
-        max_age=60 * 60 * 24 * 14,
-    )
-    return UserOut(id=u.id, email=u.email)
-
-@app.post("/auth/logout")
-def logout(response: Response):
-    response.delete_cookie(key=COOKIE_NAME, path="/")
-    return {"ok": True}
-
-@app.get("/auth/me", response_model=UserOut)
-def me(user: User = Depends(require_user)):
-    return UserOut(id=user.id, email=user.email)
 
 @app.get("/me/attempts", response_model=list[AttemptStartOut])
 def my_attempts(user: User = Depends(require_user), db: Session = Depends(get_db)):

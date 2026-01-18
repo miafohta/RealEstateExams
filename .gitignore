@@ -26,6 +26,10 @@ frontend/dist/
 *.log
 data/**/*.csv
 
+# Cookies / Auth tokens
+cookies.txt
+*.cookies
+
 # VS Code / Cursor
 .vscode/*
 !.vscode/settings.json

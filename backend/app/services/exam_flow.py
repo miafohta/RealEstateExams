@@ -114,7 +114,7 @@ def create_attempt_with_balanced_questions(
     mode: AttemptMode,
     exam_name: str | None,
     question_count: int = DEFAULT_QUESTION_COUNT,
-    user_id: int | None = None,
+    user_id: int,
     time_limit_seconds: int | None = None,
 ) -> ExamAttempt:
     """
