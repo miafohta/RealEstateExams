@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -27,9 +27,6 @@ class ExamAttempt(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    # If you don’t have users yet, keep it nullable
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
     mode: Mapped[AttemptMode] = mapped_column(Enum(AttemptMode), nullable=False)
     exam_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
@@ -51,8 +48,9 @@ class ExamAttempt(Base):
         back_populates="attempt", cascade="all, delete-orphan"
     )
 
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     user: Mapped["User | None"] = relationship()
+
 
 
 class ExamAttemptQuestion(Base):
@@ -136,4 +134,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    created_at: Mapped["datetime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+    DateTime(timezone=True),
+    nullable=False,
+    default=lambda: datetime.now(timezone.utc),
+)
