@@ -221,6 +221,8 @@ export default function HomePage() {
             {!attemptsLoading && attempts && attempts.length > 0 && (
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 {attempts.map((a) => {
+                  console.log("attempt", a.attempt_id, "submitted_at", a.submitted_at);
+
                   const isSubmitted = !!a.submitted_at;
                   const status = isSubmitted
                     ? `${a.score_percent ?? 0}% ${

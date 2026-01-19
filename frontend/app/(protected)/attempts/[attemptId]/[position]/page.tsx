@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, QuestionForAttemptOut } from "@/src/lib/api";
+import { useAttemptMeta } from "@/src/lib/useAttemptMeta";
+
 
 type AttemptMeta = {
   mode: "practice" | "timed";
@@ -38,9 +40,6 @@ export default function QuestionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canPrev = position > 1;
-  const canNext = position < 150;
-
   const [meta, setMeta] = useState<AttemptMeta | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const [showHint, setShowHint] = useState(false);
@@ -48,10 +47,16 @@ export default function QuestionPage() {
   const [timeUp, setTimeUp] = useState(false);
 
   const questionCount = meta?.question_count ?? 150;
+  const canPrev = position > 1;
+  const canNext = position < questionCount;
 
   const [answered, setAnswered] = useState<Set<number>>(new Set());
   const answeredKey = `attempt:answered:${attemptId}`;
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+
+  const { meta: attemptStatus, loading: statusLoading } = useAttemptMeta(attemptId);
+  const isSubmitted = !!attemptStatus?.submitted_at || !!attemptStatus?.is_submitted;
+
 
   useEffect(() => {
     let mounted = true;
@@ -229,23 +234,53 @@ export default function QuestionPage() {
             Next
           </button>
 
-          {isPractice && (
-            <button
-              onClick={() => router.push("/")}
-              style={{ padding: "8px 12px", borderRadius: 8 }}
-            >
-              Save & Exit
-            </button>
+
+          {/* ACTION BUTTONS */}
+          {!statusLoading && !isSubmitted && (
+            <>
+              {/* Practice mode: Save & Exit */}
+              {isPractice && (
+                <button
+                  onClick={() => router.push("/")}
+                  style={{ padding: "8px 12px", borderRadius: 8 }}
+                >
+                  Save & Exit
+                </button>
+              )}
+
+              {/* Last question: Submit */}
+              {position === questionCount && (
+                <button
+                  onClick={onSubmitClick}
+                  style={{ padding: "8px 12px", borderRadius: 8 }}
+                >
+                  Submit
+                </button>
+              )}
+            </>
           )}
 
-          {position === questionCount && (
-            <button
-              onClick={onSubmitClick}
-              style={{ padding: "8px 12px", borderRadius: 8 }}
+          {/* Submitted state */}
+          {!statusLoading && isSubmitted && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: "#f3f4f6",
+                fontSize: 14,
+              }}
             >
-              Submit
-            </button>
+              This exam has been submitted.{" "}
+              <a
+                href={`/attempts/${attemptId}/review`}
+                style={{ marginLeft: 6, textDecoration: "underline" }}
+              >
+                Go to review →
+              </a>
+            </div>
           )}
+
         </div>
       </div>
 
@@ -384,8 +419,8 @@ export default function QuestionPage() {
             {saving
               ? "Saving..."
               : selected
-              ? `Selected: ${selected}`
-              : "No selection yet"}
+                ? `Selected: ${selected}`
+                : "No selection yet"}
           </div>
 
           {/* Explanation appears immediately in practice, or after submit in timed */}

@@ -123,3 +123,11 @@ class LoginIn(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
+
+class AttemptSummaryOut(BaseModel):
+    attempt_id: int
+    mode: AttemptMode
+    started_at: datetime
+    submitted_at: datetime | None
+    score_percent: int | None
+    passed: bool | None

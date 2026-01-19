@@ -18,6 +18,7 @@ from .schemas import (
     AttemptStartIn, AttemptStartOut,   
     QuestionForAttemptOut, ChoiceOutSimple,
     AnswerIn, SubmitOut, ReviewItemOut,
+    AttemptSummaryOut
 )
 
 # NEW service
@@ -118,6 +119,11 @@ def _ensure_not_expired(attempt: ExamAttempt):
         raise HTTPException(status_code=403, detail="Time limit exceeded. Please submit the attempt.")
 
 
+def _ensure_attempt_active(attempt: ExamAttempt) -> None:
+    if attempt.submitted_at is not None:
+        raise HTTPException(status_code=409, detail="Attempt already submitted")
+
+
 @app.post("/attempts/start", response_model=AttemptStartOut)
 def start_attempt(
     payload: AttemptStartIn,
@@ -201,6 +207,7 @@ def get_attempt_question(attempt_id: int, position: int, db: Session = Depends(g
 @app.post("/attempts/{attempt_id}/answer")
 def answer_question(attempt_id: int, payload: AnswerIn, db: Session = Depends(get_db),  user: User = Depends(get_current_user)):
     attempt = _get_attempt_or_404(db, attempt_id, user)
+    _ensure_attempt_active(attempt)
     _ensure_not_expired(attempt)
     if attempt.submitted_at is not None:
         raise HTTPException(status_code=400, detail="Attempt already submitted")
@@ -224,7 +231,8 @@ def answer_question(attempt_id: int, payload: AnswerIn, db: Session = Depends(ge
     ans = db.scalars(ans_stmt).first()
     if ans:
         ans.selected_label = payload.selected_label
-        ans.answered_at = datetime.utcnow()
+        ans.answered_at = datetime.now(timezone.utc)
+
     else:
         ans = ExamAnswer(
             attempt_id=attempt_id,
@@ -244,8 +252,10 @@ from fastapi import HTTPException
 @app.post("/attempts/{attempt_id}/submit", response_model=SubmitOut)
 def submit_attempt(attempt_id: int, db: Session = Depends(get_db),  user: User = Depends(get_current_user)):
     attempt = _get_attempt_or_404(db, attempt_id, user)
-    if attempt.submitted_at is not None:
-        raise HTTPException(status_code=400, detail="Attempt already submitted")
+    _ensure_attempt_active(attempt)
+
+    #if attempt.submitted_at is not None:
+    #    raise HTTPException(status_code=400, detail="Attempt already submitted")
 
     # Get all question ids in this attempt + topic for breakdown
     qrows = db.execute(
@@ -377,7 +387,7 @@ def review_attempt(attempt_id: int, db: Session = Depends(get_db), user: User = 
     return out
 
 
-@app.get("/me/attempts", response_model=list[AttemptStartOut])
+@app.get("/me/attempts", response_model=list[AttemptSummaryOut])
 def my_attempts(user: User = Depends(require_user), db: Session = Depends(get_db)):
     stmt = (
         select(ExamAttempt)
@@ -388,7 +398,7 @@ def my_attempts(user: User = Depends(require_user), db: Session = Depends(get_db
     return [
       {
         "attempt_id": a.id,
-        "mode": a.mode,
+        "mode": a.mode.value if hasattr(a.mode, "value") else a.mode,
         "exam_name": a.exam_name,
         "question_count": a.question_count,
         "time_limit_seconds": a.time_limit_seconds,
@@ -400,4 +410,19 @@ def my_attempts(user: User = Depends(require_user), db: Session = Depends(get_db
       for a in db.scalars(stmt).all()
     ]
 
+@app.get("/attempts/{attempt_id}")
+def get_attempt_meta(attempt_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
+    return {
+        "attempt_id": attempt.id,
+        "mode": attempt.mode.value if hasattr(attempt.mode, "value") else attempt.mode,
+        "exam_name": attempt.exam_name,
+        "question_count": attempt.question_count,
+        "time_limit_seconds": attempt.time_limit_seconds,
+        "started_at": attempt.started_at,
+        "submitted_at": attempt.submitted_at,
+        "is_submitted": attempt.submitted_at is not None,
+        "score_percent": attempt.score_percent,
+        "passed": attempt.passed,
+    }
 
