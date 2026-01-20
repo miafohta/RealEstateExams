@@ -3,7 +3,9 @@
 import { useEffect, useMemo,useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, AttemptSummary, UserOut, AttemptMode } from "@/src/lib/api";
+import { api, UserOut, AttemptMode } from "@/src/lib/api";
+import { AttemptSummary } from "@/src/lib/types";
+import ProgressSnapshot from "@/app/components/ProgressSnapshot";
 
 export default function HomePage() {
   const router = useRouter();
@@ -113,6 +115,11 @@ export default function HomePage() {
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>
         Real Estate Exam Practice
       </h1>
+
+      <section className="mt-4">
+        <ProgressSnapshot />
+      </section>
+      
       <p style={{ marginTop: 8, opacity: 0.8 }}>
         Choose a mode to start a 150-question balanced set.
       </p>

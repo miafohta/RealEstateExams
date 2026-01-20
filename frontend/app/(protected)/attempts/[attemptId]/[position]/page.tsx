@@ -4,14 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, QuestionForAttemptOut } from "@/src/lib/api";
 import { useAttemptMeta } from "@/src/lib/useAttemptMeta";
-
-
-type AttemptMeta = {
-  mode: "practice" | "timed";
-  started_at: string;
-  time_limit_seconds: number | null;
-  question_count: number;
-};
+import type { AttemptMeta } from "@/src/lib/types";
 
 function formatHMS(totalSeconds: number) {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -40,15 +33,12 @@ export default function QuestionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [meta, setMeta] = useState<AttemptMeta | null>(null);
+  //const [meta, setMeta] = useState<AttemptMeta | null>(null);
+
   const [now, setNow] = useState<number>(Date.now());
   const [showHint, setShowHint] = useState(false);
   const autoSubmittedRef = useRef(false);
   const [timeUp, setTimeUp] = useState(false);
-
-  const questionCount = meta?.question_count ?? 150;
-  const canPrev = position > 1;
-  const canNext = position < questionCount;
 
   const [answered, setAnswered] = useState<Set<number>>(new Set());
   const answeredKey = `attempt:answered:${attemptId}`;
@@ -57,6 +47,10 @@ export default function QuestionPage() {
   const { meta: attemptStatus, loading: statusLoading } = useAttemptMeta(attemptId);
   const isSubmitted = !!attemptStatus?.submitted_at || !!attemptStatus?.is_submitted;
 
+  const meta = attemptStatus ?? null;
+  const questionCount = meta?.question_count ?? 150;
+  const canPrev = position > 1;
+  const canNext = position < questionCount;
 
   useEffect(() => {
     let mounted = true;
@@ -84,10 +78,10 @@ export default function QuestionPage() {
     };
   }, [attemptId, position]);
 
-  useEffect(() => {
-    const raw = localStorage.getItem(`attempt:${attemptId}`);
-    if (raw) setMeta(JSON.parse(raw));
-  }, [attemptId]);
+  //useEffect(() => {
+  //  const raw = localStorage.getItem(`attempt:${attemptId}`);
+  //  if (raw) setMeta(JSON.parse(raw));
+  //}, [attemptId]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -111,11 +105,20 @@ export default function QuestionPage() {
 
   useEffect(() => {
     if (!timer || autoSubmittedRef.current) return;
+
     const timerValue = timer;
     if (timerValue.remaining <= 0) {
       autoSubmittedRef.current = true;
       setTimeUp(true);
-      router.replace(`/attempts/${attemptId}/result`);
+      //router.replace(`/attempts/${attemptId}/result`);
+      api
+        .submit(attemptId)
+        .catch((e: any) => {
+          if (e?.status !== 409) console.error(e);
+        })
+        .finally(() => {
+          router.replace(`/attempts/${attemptId}/result`);
+        });
     }
   }, [timer, router, attemptId]);
 
@@ -208,7 +211,7 @@ export default function QuestionPage() {
       >
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700 }}>
-            Question {position} / 150
+            Question {position} / {questionCount}
           </h1>
           <div style={{ marginTop: 6, opacity: 0.8 }}>{topicLine}</div>
         </div>
@@ -452,56 +455,7 @@ export default function QuestionPage() {
           )}
         </section>
       )}
-      {confirmSubmit && unansweredList.length > 0 && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 16,
-            border: "2px solid #c00",
-            borderRadius: 12,
-            background: "#fff5f5",
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>
-            You have {unansweredList.length} unanswered question
-            {unansweredList.length > 1 ? "s" : ""}.
-          </div>
 
-          <div style={{ marginBottom: 10, opacity: 0.9 }}>
-            Are you sure you want to submit the exam?
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              onClick={() =>
-                router.push(`/attempts/${attemptId}/${unansweredList[0]}`)
-              }
-              style={{ padding: "8px 12px", borderRadius: 8 }}
-            >
-              Go to first unanswered
-            </button>
-
-            <button
-              onClick={() => router.push(`/attempts/${attemptId}/result`)}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: "#c00",
-                color: "#fff",
-              }}
-            >
-              Submit anyway
-            </button>
-
-            <button
-              onClick={() => setConfirmSubmit(false)}
-              style={{ padding: "8px 12px", borderRadius: 8 }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {unansweredList.length > 0 && (
         <div

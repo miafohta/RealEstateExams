@@ -14,9 +14,9 @@ export default function ResultPage() {
 
   useEffect(() => {
     api
-      .submit(attemptId)
+      .attemptResult(attemptId)
       .then(setData)
-      .catch((e: any) => setError(e.message ?? "Failed to submit attempt"));
+      .catch((e: any) => setError(e.message ?? "Failed to load attempt"));
   }, [attemptId]);
 
   return (
@@ -24,7 +24,7 @@ export default function ResultPage() {
       <h1 style={{ fontSize: 24, fontWeight: 800 }}>Result</h1>
 
       {error && <p style={{ color: "crimson", marginTop: 14 }}>{error}</p>}
-      {!data && !error && <p style={{ marginTop: 14 }}>Submitting...</p>}
+      {!data && !error && <p style={{ marginTop: 14 }}>Loading result..</p>}
 
       {data && (
         <>

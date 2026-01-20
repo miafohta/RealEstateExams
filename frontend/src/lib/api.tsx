@@ -1,3 +1,5 @@
+import { AttemptSummary } from "./types";
+
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -7,7 +9,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
-      credentials: "include",
     },
     credentials: "include",
     cache: "no-store",
@@ -107,22 +108,6 @@ export type LoginIn = {
   password: string;
 };
 
-// Use whatever your backend returns for attempts.
-// If your backend returns {attempt_id: ...} keep that shape.
-// If it returns {id: ...} update this accordingly.
-export type AttemptSummary = {
-  attempt_id: number;
-  mode: "practice" | "timed";
-  exam_name: string | null;
-  question_count: number;
-  time_limit_seconds: number | null;
-  started_at: string;
-  submitted_at: string | null;
-  score_percent: number | null;
-  passed: boolean | null;
-};
-
-
 export const api = {
   // --- auth ---
   signup: (payload: SignupIn) =>
@@ -166,6 +151,9 @@ export const api = {
 
   submit: (attemptId: number) =>
     apiFetch<SubmitOut>(`/attempts/${attemptId}/submit`, { method: "POST" }),
+
+  attemptResult: (attemptId: number) =>
+    apiFetch<SubmitOut>(`/attempts/${attemptId}/result`),
 
   review: (attemptId: number) =>
     apiFetch<ReviewItemOut[]>(`/attempts/${attemptId}/review`),

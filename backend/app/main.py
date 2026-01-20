@@ -254,9 +254,6 @@ def submit_attempt(attempt_id: int, db: Session = Depends(get_db),  user: User =
     attempt = _get_attempt_or_404(db, attempt_id, user)
     _ensure_attempt_active(attempt)
 
-    #if attempt.submitted_at is not None:
-    #    raise HTTPException(status_code=400, detail="Attempt already submitted")
-
     # Get all question ids in this attempt + topic for breakdown
     qrows = db.execute(
         select(ExamAttemptQuestion.question_id, ExamAttemptQuestion.topic)
@@ -322,6 +319,66 @@ def submit_attempt(attempt_id: int, db: Session = Depends(get_db),  user: User =
         submitted_at=submitted_at,
     )
 
+@app.get("/attempts/{attempt_id}/result", response_model=SubmitOut)
+def get_attempt_result(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    attempt = _get_attempt_or_404(db, attempt_id, user)
+
+    if attempt.submitted_at is None:
+        raise HTTPException(status_code=409, detail="Attempt not submitted yet")
+
+    # --- recompute totals/breakdown read-only (same as submit) ---
+    qrows = db.execute(
+        select(ExamAttemptQuestion.question_id, ExamAttemptQuestion.topic)
+        .where(ExamAttemptQuestion.attempt_id == attempt_id)
+    ).all()
+
+    qids = [qid for (qid, _topic) in qrows]
+    if not qids:
+        raise HTTPException(status_code=400, detail="Attempt has no questions")
+
+    topic_by_qid = {qid: (topic or "Unknown") for (qid, topic) in qrows}
+
+    correct_map = dict(
+        db.execute(
+            select(Choice.question_id, Choice.label)
+            .where(Choice.question_id.in_(qids))
+            .where(Choice.is_correct == True)  # noqa: E712
+        ).all()
+    )
+
+    ans_map = dict(
+        db.execute(
+            select(ExamAnswer.question_id, ExamAnswer.selected_label)
+            .where(ExamAnswer.attempt_id == attempt_id)
+        ).all()
+    )
+
+    total = len(qids)
+    correct = 0
+    breakdown: dict[str, dict[str, int]] = {}
+
+    for qid in qids:
+        topic = topic_by_qid.get(qid, "Unknown")
+        breakdown.setdefault(topic, {"correct": 0, "total": 0})
+        breakdown[topic]["total"] += 1
+
+        if ans_map.get(qid) is not None and ans_map.get(qid) == correct_map.get(qid):
+            correct += 1
+            breakdown[topic]["correct"] += 1
+
+    return SubmitOut(
+        attempt_id=attempt.id,
+        score_percent=attempt.score_percent,
+        passed=attempt.passed,
+        total_questions=total,
+        correct=correct,
+        breakdown_by_topic=breakdown,
+        submitted_at=attempt.submitted_at,
+    )
 
 @app.get("/attempts/{attempt_id}/review", response_model=list[ReviewItemOut])
 def review_attempt(attempt_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
