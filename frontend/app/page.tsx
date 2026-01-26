@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { api, UserOut, AttemptMode } from "@/src/lib/api";
 import { AttemptSummary } from "@/src/lib/types";
 import ProgressSnapshot from "@/app/components/ProgressSnapshot";
+import { Play, Clock } from "lucide-react";
 
 export default function HomePage() {
   const router = useRouter();
@@ -119,7 +120,7 @@ export default function HomePage() {
       <section className="mt-4">
         <ProgressSnapshot />
       </section>
-      
+
       <p style={{ marginTop: 8, opacity: 0.8 }}>
         Choose a mode to start a 150-question balanced set.
       </p>
@@ -129,27 +130,39 @@ export default function HomePage() {
           onClick={() =>
             router.push(`/attempts/${resumeAttemptId}/${resumePos}`)
           }
-          style={{ padding: "10px 14px", borderRadius: 8, marginTop: 12 }}
+          className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
         >
           Resume Practice
         </button>
       )}
 
-      <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+      <div className="mt-6 flex flex-wrap gap-3">
         <button
           onClick={() => start("practice")}
           disabled={loading !== null}
-          style={{ padding: "10px 14px", borderRadius: 8 }}
+          className={[
+            "inline-flex items-center rounded-xl border px-4 py-2 text-sm font-medium transition",
+            loading !== null
+              ? "cursor-not-allowed opacity-60"
+              : "border-gray-300 bg-white hover:bg-gray-50",
+          ].join(" ")}
         >
-          {loading === "practice" ? "Starting..." : "Practice Mode"}
+          <Clock className="mr-2 h-4 w-4" />
+          {loading === "practice" ? "Starting…" : "Practice Mode"}
         </button>
 
         <button
           onClick={() => start("timed")}
           disabled={loading !== null}
-          style={{ padding: "10px 14px", borderRadius: 8 }}
+          className={[
+            "inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium transition",
+            loading !== null
+              ? "cursor-not-allowed opacity-60"
+              : "bg-black text-white hover:bg-gray-800",
+          ].join(" ")}
         >
-          {loading === "timed" ? "Starting..." : "Timed Exam Mode"}
+          <Play className="mr-2 h-4 w-4" />
+          {loading === "timed" ? "Starting…" : "Timed Exam Mode"}
         </button>
       </div>
 
@@ -292,7 +305,7 @@ export default function HomePage() {
                           <>
                             <button
                               onClick={() =>
-                                router.push(`/attempts/${a.attempt_id}/result`)
+                                router.push(`/attempts/${a.attempt_id}/summary?tab=result`)
                               }
                               style={{ padding: "8px 12px", borderRadius: 8 }}
                             >
@@ -301,7 +314,7 @@ export default function HomePage() {
 
                             <button
                               onClick={() =>
-                                router.push(`/attempts/${a.attempt_id}/review`)
+                                router.push(`/attempts/${a.attempt_id}/summary?tab=review`)
                               }
                               style={{ padding: "8px 12px", borderRadius: 8 }}
                             >

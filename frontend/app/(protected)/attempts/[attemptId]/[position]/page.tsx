@@ -106,6 +106,51 @@ export default function QuestionPage() {
   useEffect(() => {
     if (!timer || autoSubmittedRef.current) return;
 
+    if (timer.remaining <= 0) {
+      autoSubmittedRef.current = true;
+      setTimeUp(true);
+
+      (async () => {
+        try {
+          await api.submit(attemptId); // ✅ POST /attempts/{id}/submit
+        } catch (e: any) {
+          if (e?.status !== 409) {
+            console.error(e);
+            setError(e?.message ?? "Failed to auto-submit");
+            return;
+          }
+        }
+        router.replace(`/attempts/${attemptId}/result`); // frontend route
+      })();
+    }
+  }, [timer, attemptId, router]);
+
+
+  async function submitAndGoToResult() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.submit(attemptId);
+    } catch (e: any) {
+      if (e?.status !== 409) throw e;
+    } finally {
+      setSaving(false);
+    }
+
+    // cleanup resume pointers
+    localStorage.removeItem(`attempt:lastpos:${attemptId}`);
+    const last = localStorage.getItem("last_practice_attempt");
+    if (last && Number(last) === attemptId) {
+      localStorage.removeItem("last_practice_attempt");
+    }
+
+    router.replace(`/attempts/${attemptId}/result`);
+  }
+
+/*
+  useEffect(() => {
+    if (!timer || autoSubmittedRef.current) return;
+
     const timerValue = timer;
     if (timerValue.remaining <= 0) {
       autoSubmittedRef.current = true;
@@ -121,6 +166,7 @@ export default function QuestionPage() {
         });
     }
   }, [timer, router, attemptId]);
+*/
 
   const topicLine = useMemo(() => {
     if (!data) return "";
@@ -196,6 +242,18 @@ export default function QuestionPage() {
     return out;
   }, [answered, questionCount]);
 
+  async function onSubmitClick() {
+    if (unansweredList.length > 0) {
+      setConfirmSubmit(true);
+      return;
+    }
+    try {
+      await submitAndGoToResult();
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to submit attempt");
+    }
+  }
+/*
   function onSubmitClick() {
     if (unansweredList.length > 0) {
       setConfirmSubmit(true);
@@ -203,6 +261,7 @@ export default function QuestionPage() {
     }
     router.push(`/attempts/${attemptId}/result`);
   }
+*/
 
   return (
     <main style={{ maxWidth: 900, margin: "30px auto", padding: 16 }}>
@@ -254,7 +313,15 @@ export default function QuestionPage() {
               {/* Last question: Submit */}
               {position === questionCount && (
                 <button
-                  onClick={onSubmitClick}
+                  onClick={async () => {
+                    try {
+                      await submitAndGoToResult();
+                    } catch (e: any) {
+                      setError(e?.message ?? "Failed to submit attempt");
+                    } finally {
+                      setConfirmSubmit(false);
+                    }
+                  }}
                   style={{ padding: "8px 12px", borderRadius: 8 }}
                 >
                   Submit
@@ -354,7 +421,15 @@ export default function QuestionPage() {
             </button>
 
             <button
-              onClick={() => router.push(`/attempts/${attemptId}/result`)}
+              onClick={async () => {
+                try {
+                  await submitAndGoToResult();
+                } catch (e: any) {
+                  setError(e?.message ?? "Failed to submit attempt");
+                } finally {
+                  setConfirmSubmit(false);
+                }
+              }}
               style={{
                 padding: "8px 12px",
                 borderRadius: 8,

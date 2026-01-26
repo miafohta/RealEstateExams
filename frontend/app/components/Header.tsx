@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../providers";
+import { UserCircleIcon } from "@heroicons/react/24/outline"
 
 export default function Header() {
   const router = useRouter();
@@ -14,18 +15,11 @@ export default function Header() {
   }
 
   return (
-    <header
-      style={{
-        borderBottom: "1px solid #e5e7eb",
-        padding: "12px 24px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
+    <header className="border-b bg-white">
       {/* Left */}
-      <Link href="/" style={{ fontWeight: 600 }}>
-        RealEstateExams
+      <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+        <Link href="/" className="font-semibold">
+          RealEstateExams
       </Link>
 
       {/* Right */}
@@ -33,17 +27,21 @@ export default function Header() {
         <nav style={{ display: "flex", gap: 16 }}>
           {user ? (
             <>
-              <Link href="/account">My Account</Link>
+                <Link href="/account" 
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900" 
+                  aria-label="My Account"><UserCircleIcon className="h-8 w-8" />
+                </Link>
               <button onClick={handleLogout}>Logout</button>
             </>
           ) : (
             <>
-              <Link href="/login">Login</Link>
-              <Link href="/signup">Sign up</Link>
+                  <Link href="/login" className="text-sm text-blue-600 hover:underline">Login</Link>
+                  <Link href="/signup" className="text-sm text-blue-600 hover:underline">Sign up</Link>
             </>
           )}
         </nav>
       )}
+      </div>
     </header>
   );
 }

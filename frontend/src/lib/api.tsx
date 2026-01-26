@@ -3,6 +3,43 @@ import { AttemptSummary } from "./types";
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+
+class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let msg = `Request failed: ${res.status}`;
+    try {
+      const data = await res.json();
+      msg = data?.detail
+        ? typeof data.detail === "string"
+          ? data.detail
+          : JSON.stringify(data.detail)
+        : msg;
+    } catch { }
+    throw new ApiError(res.status, msg);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+/*
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -28,7 +65,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return res.json() as Promise<T>;
-}
+}*/
 
 export type AttemptMode = "practice" | "timed";
 
