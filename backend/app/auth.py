@@ -14,6 +14,9 @@ ALGO = "HS256"
 COOKIE_NAME = "access_token"
 ACCESS_TOKEN_DAYS = 14
 
+def _is_prod() -> bool:
+    return os.getenv("ENV", "dev").lower() in {"prod", "production"}
+
 def hash_password(p: str) -> str:
     return pwd.hash(p)
 
@@ -21,7 +24,13 @@ def verify_password(p: str, h: str) -> bool:
     return pwd.verify(p, h)
 
 def _secret() -> str:
-    return os.getenv("JWT_SECRET", "dev-secret-change-me")
+    s = os.getenv("JWT_SECRET")
+    if s:
+        return s
+    # Fail hard in production so you don't accidentally deploy with a known secret.
+    if _is_prod():
+        raise RuntimeError("JWT_SECRET is not set (required in production)")
+    return "dev-secret-change-me"
 
 def create_access_token(*, user_id: int) -> str:
     exp = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_DAYS)
@@ -51,3 +60,8 @@ def require_user(user: User | None = Depends(get_current_user_optional)) -> User
     return user
 
 
+def require_admin(user: User = Depends(require_user)) -> User:
+    # Backwards compatible if the column isn't added yet.
+    if not getattr(user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user

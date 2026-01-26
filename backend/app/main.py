@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from .db import SessionLocal, get_db
 from .models import Question, Choice, User
-from .auth import get_current_user_optional, require_user
+from .auth import require_user, require_admin
 from app.routers.me import get_current_user
 
 # NEW models
@@ -24,12 +24,20 @@ from .schemas import (
 # NEW service
 from .services.exam_flow import create_attempt_with_balanced_questions, PASSING_PERCENT
 
-app = FastAPI(title="Real Estate Quiz API")
+import os
 
+IS_PROD = os.getenv("ENV", "dev").lower() in {"prod", "production"}
+
+app = FastAPI(
+    title="Real Estate Quiz API",
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    openapi_url=None if IS_PROD else "/openapi.json",
+)
 # Allow Next.js dev server to call API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
+    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3001").split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,7 +54,7 @@ def health():
     return {"ok": True}
 
 @app.post("/questions", response_model=QuestionOut)
-def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
+def create_question(payload: QuestionCreate, db: Session = Depends(get_db), user: User = Depends(require_admin)):
     q = Question(text=payload.text, explanation=payload.explanation)
     q.choices = [Choice(**c.model_dump()) for c in payload.choices]
     db.add(q)
@@ -55,7 +63,7 @@ def create_question(payload: QuestionCreate, db: Session = Depends(get_db)):
     return q
 
 @app.get("/questions", response_model=list[QuestionOut])
-def list_questions(db: Session = Depends(get_db)):
+def list_questions(db: Session = Depends(get_db), user: User = Depends(require_admin)):
     stmt = (
         select(Question)
         .options(selectinload(Question.choices))
