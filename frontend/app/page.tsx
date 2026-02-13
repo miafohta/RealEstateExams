@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo,useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, UserOut, AttemptMode } from "@/src/lib/api";
 import { AttemptSummary } from "@/src/lib/types";
 import ProgressSnapshot from "@/app/components/ProgressSnapshot";
 import { Play, Clock } from "lucide-react";
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -20,6 +21,9 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [resumeAttemptId, setResumeAttemptId] = useState<number | null>(null);
   const [resumePos, setResumePos] = useState<number>(1);
+  const [topics, setTopics] = useState<string[]>([]);
+  const [topicsLoading, setTopicsLoading] = useState(false);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +41,7 @@ export default function HomePage() {
         const list = await api.myAttempts();
         if (cancelled) return;
         setAttempts(list);
-      } catch (e: any) {
+      } catch {
         // not logged in (401) is normal
         if (!cancelled) {
           setUser(null);
@@ -77,6 +81,37 @@ export default function HomePage() {
     setResumePos(Number.isFinite(pos) ? pos : 1);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) {
+      setTopics([]);
+      setSelectedTopics([]);
+      return;
+    }
+
+    async function loadTopics() {
+      setTopicsLoading(true);
+      try {
+        const out = await api.getTopics();
+        if (cancelled) return;
+        setTopics(out);
+      } catch {
+        if (!cancelled) {
+          setTopics([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setTopicsLoading(false);
+        }
+      }
+    }
+
+    loadTopics();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   async function start(mode: AttemptMode) {
     setError(null);
     setLoading(mode);
@@ -84,6 +119,7 @@ export default function HomePage() {
       const out = await api.startAttempt({
         mode,
         exam_name: null,
+        topics: selectedTopics.length > 0 ? selectedTopics : null,
         question_count: 150,
         time_limit_seconds: mode === "timed" ? 11700 : null, // dev-friendly; remove later
       });
@@ -104,8 +140,8 @@ export default function HomePage() {
       }
 
       router.push(`/attempts/${out.attempt_id}/1`);
-    } catch (e: any) {
-      setError(e.message ?? "Failed to start attempt");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to start attempt");
     } finally {
       setLoading(null);
     }
@@ -124,6 +160,74 @@ export default function HomePage() {
       <p style={{ marginTop: 8, opacity: 0.8 }}>
         Choose a mode to start a 150-question balanced set.
       </p>
+
+      {user && (
+        <section
+          style={{
+            marginTop: 16,
+            border: "1px solid #e5e7eb",
+            borderRadius: 12,
+            padding: 12,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Topic filter</div>
+          <p style={{ margin: 0, opacity: 0.8, fontSize: 14 }}>
+            Leave unselected to include all topics.
+          </p>
+
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => setSelectedTopics(topics)}
+              disabled={topics.length === 0}
+              className="rounded border border-gray-300 px-3 py-1 text-sm"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTopics([])}
+              disabled={selectedTopics.length === 0}
+              className="rounded border border-gray-300 px-3 py-1 text-sm"
+            >
+              Clear
+            </button>
+          </div>
+
+          {topicsLoading && <div style={{ marginTop: 10 }}>Loading topics…</div>}
+          {!topicsLoading && topics.length === 0 && (
+            <div style={{ marginTop: 10, opacity: 0.8 }}>No topics available.</div>
+          )}
+          {!topicsLoading && topics.length > 0 && (
+            <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+              {topics.map((topic) => (
+                <label
+                  key={topic}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 14,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTopics.includes(topic)}
+                    onChange={(e) =>
+                      setSelectedTopics((prev) =>
+                        e.target.checked
+                          ? [...prev, topic]
+                          : prev.filter((t) => t !== topic)
+                      )
+                    }
+                  />
+                  <span>{topic}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {resumeAttemptId && (
         <button

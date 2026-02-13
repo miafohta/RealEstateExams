@@ -47,3 +47,67 @@ h3 {
 p {
   line-height: 1.7;
 }
+
+.exam-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  /* gray-300 */
+  background: #ffffff;
+  color: #111827;
+  /* gray-900 */
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.exam-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  /* gray-100 */
+}
+
+.exam-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exam-btn-primary {
+  background: #2563eb;
+  /* blue-600 */
+  color: white;
+  border-color: #2563eb;
+}
+
+.exam-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  /* blue-700 */
+}
+
+.exam-btn-danger {
+  background: #fee2e2;
+  /* red-100 */
+  color: #991b1b;
+  /* red-800 */
+  border-color: #fecaca;
+}
+
+.exam-btn-danger:hover {
+  background: #fecaca;
+}
+
+/*
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 text-gray-800 hover:bg-gray-200 focus:ring-gray-400;
+}
+
+.btn-danger {
+  @apply bg-red-50 text-red-700 hover:bg-red-100 focus:ring-red-400;
+}
+  */

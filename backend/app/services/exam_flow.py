@@ -97,7 +97,22 @@ def _compute_subtopic_quota(
     return quota
 
 
-def _pick_question_ids_for_bucket(db: Session, topic: str, subtopic: str | None, limit: int) -> list[int]:
+def _apply_question_filters(stmt, exam_name: str | None, selected_topics: list[str] | None):
+    if exam_name:
+        stmt = stmt.where(Question.exam_name == exam_name)
+    if selected_topics:
+        stmt = stmt.where(Question.topic.in_(selected_topics))
+    return stmt
+
+
+def _pick_question_ids_for_bucket(
+    db: Session,
+    topic: str,
+    subtopic: str | None,
+    limit: int,
+    exam_name: str | None,
+    selected_topics: list[str] | None,
+) -> list[int]:
     stmt = (
         select(Question.id)
         .where(Question.topic == topic)
@@ -105,6 +120,7 @@ def _pick_question_ids_for_bucket(db: Session, topic: str, subtopic: str | None,
         .order_by(func.random())
         .limit(limit)
     )
+    stmt = _apply_question_filters(stmt, exam_name, selected_topics)
     return list(db.execute(stmt).scalars().all())
 
 
@@ -113,6 +129,7 @@ def create_attempt_with_balanced_questions(
     *,
     mode: AttemptMode,
     exam_name: str | None,
+    selected_topics: list[str] | None = None,
     question_count: int = DEFAULT_QUESTION_COUNT,
     user_id: int,
     time_limit_seconds: int | None = None,
@@ -125,10 +142,13 @@ def create_attempt_with_balanced_questions(
     if mode == AttemptMode.practice:
         time_limit_seconds = None
 
-    # 1) Get counts by topic (optionally filter by exam_name if you want separate banks)
+    clean_topics = [t.strip() for t in (selected_topics or []) if t and t.strip()]
+    clean_topics = list(dict.fromkeys(clean_topics))
+    selected_topics = clean_topics or None
+
+    # 1) Get counts by topic (optionally filter by exam_name/topics)
     base = select(Question.topic, func.count(Question.id)).group_by(Question.topic)
-    if exam_name:
-        base = base.where(Question.exam_name == exam_name)
+    base = _apply_question_filters(base, exam_name, selected_topics)
 
     topic_rows = db.execute(base).all()
     topic_counts = {t: c for (t, c) in topic_rows if t is not None}
@@ -139,8 +159,7 @@ def create_attempt_with_balanced_questions(
 
     # 2) Counts by (topic, subtopic)
     sub_base = select(Question.topic, Question.subtopic, func.count(Question.id)).group_by(Question.topic, Question.subtopic)
-    if exam_name:
-        sub_base = sub_base.where(Question.exam_name == exam_name)
+    sub_base = _apply_question_filters(sub_base, exam_name, selected_topics)
 
     sub_rows = db.execute(sub_base).all()
     sub_counts = {(t, s): c for (t, s, c) in sub_rows if t is not None}
@@ -152,17 +171,16 @@ def create_attempt_with_balanced_questions(
     for (topic, subtopic), q in sub_quota.items():
         if topic is None:
             continue
-        ids = _pick_question_ids_for_bucket(db, topic, subtopic, q)
+        ids = _pick_question_ids_for_bucket(db, topic, subtopic, q, exam_name, selected_topics)
         picked_ids.extend(ids)
 
     # 4) De-dup and fill/trim to exact count
     picked_ids = list(dict.fromkeys(picked_ids))  # stable unique
     if len(picked_ids) < question_count:
-        # Fill the remainder from anywhere (still within exam_name filter)
+        # Fill the remainder from anywhere (still within exam_name/topics filters)
         remaining = question_count - len(picked_ids)
         filler_stmt = select(Question.id)
-        if exam_name:
-            filler_stmt = filler_stmt.where(Question.exam_name == exam_name)
+        filler_stmt = _apply_question_filters(filler_stmt, exam_name, selected_topics)
         filler_stmt = filler_stmt.where(Question.id.not_in(picked_ids)).order_by(func.random()).limit(remaining)
         picked_ids.extend(list(db.execute(filler_stmt).scalars().all()))
 

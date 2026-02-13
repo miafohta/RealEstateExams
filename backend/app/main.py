@@ -148,6 +148,7 @@ def start_attempt(
             db,
             mode=mode_enum,
             exam_name=payload.exam_name,
+            selected_topics=payload.topics,
             question_count=payload.question_count,
             user_id=user.id,  # always present
             time_limit_seconds=payload.time_limit_seconds,
@@ -163,6 +164,22 @@ def start_attempt(
         time_limit_seconds=attempt.time_limit_seconds,
         started_at=attempt.started_at,
     )
+
+@app.get("/attempts/topics", response_model=list[str])
+def list_attempt_topics(
+    exam_name: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    stmt = (
+        select(Question.topic)
+        .where(Question.topic.is_not(None))
+        .distinct()
+        .order_by(Question.topic.asc())
+    )
+    if exam_name:
+        stmt = stmt.where(Question.exam_name == exam_name)
+    return list(db.execute(stmt).scalars().all())
 
 @app.get("/attempts/{attempt_id}/questions/{position}", response_model=QuestionForAttemptOut)
 def get_attempt_question(attempt_id: int, position: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -490,4 +507,3 @@ def get_attempt_meta(attempt_id: int, db: Session = Depends(get_db), user: User 
         "score_percent": attempt.score_percent,
         "passed": attempt.passed,
     }
-

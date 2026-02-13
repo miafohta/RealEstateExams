@@ -72,6 +72,7 @@ export type AttemptMode = "practice" | "timed";
 export type AttemptStartIn = {
   mode: AttemptMode;
   exam_name: string | null;
+  topics?: string[] | null;
   question_count?: number;
   time_limit_seconds?: number | null;
 };
@@ -168,6 +169,11 @@ export const api = {
   me: () => apiFetch<UserOut>("/auth/me"),
 
   myAttempts: () => apiFetch<AttemptSummary[]>("/me/attempts"),
+
+  getTopics: (examName: string | null = null) =>
+    apiFetch<string[]>(
+      `/attempts/topics${examName ? `?exam_name=${encodeURIComponent(examName)}` : ""}`
+    ),
 
   startAttempt: (payload: AttemptStartIn) =>
     apiFetch<AttemptStartOut>("/attempts/start", {

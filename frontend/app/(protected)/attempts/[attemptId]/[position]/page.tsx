@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { api, QuestionForAttemptOut } from "@/src/lib/api";
 import { useAttemptMeta } from "@/src/lib/useAttemptMeta";
 import type { AttemptMeta } from "@/src/lib/types";
+import ExamNav from "@/app/components/ExamNav";
+
 
 function formatHMS(totalSeconds: number) {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -281,7 +283,7 @@ export default function QuestionPage() {
             onClick={() =>
               router.push(`/attempts/${attemptId}/${position - 1}`)
             }
-            style={{ padding: "8px 12px", borderRadius: 8 }}
+            className="exam-btn"
           >
             Prev
           </button>
@@ -291,7 +293,7 @@ export default function QuestionPage() {
             onClick={() =>
               router.push(`/attempts/${attemptId}/${position + 1}`)
             }
-            style={{ padding: "8px 12px", borderRadius: 8 }}
+            className="exam-btn"
           >
             Next
           </button>
@@ -304,7 +306,7 @@ export default function QuestionPage() {
               {isPractice && (
                 <button
                   onClick={() => router.push("/")}
-                  style={{ padding: "8px 12px", borderRadius: 8 }}
+                  className="exam-btn"
                 >
                   Save & Exit
                 </button>
@@ -322,13 +324,14 @@ export default function QuestionPage() {
                       setConfirmSubmit(false);
                     }
                   }}
-                  style={{ padding: "8px 12px", borderRadius: 8 }}
+                  className="exam-btn"
                 >
                   Submit
                 </button>
               )}
             </>
           )}
+
 
           {/* Submitted state */}
           {!statusLoading && isSubmitted && (
@@ -415,7 +418,7 @@ export default function QuestionPage() {
               onClick={() =>
                 router.push(`/attempts/${attemptId}/${unansweredList[0]}`)
               }
-              style={{ padding: "8px 12px", borderRadius: 8 }}
+              className="exam-btn"
             >
               Go to first unanswered
             </button>
@@ -430,19 +433,14 @@ export default function QuestionPage() {
                   setConfirmSubmit(false);
                 }
               }}
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: "#c00",
-                color: "#fff",
-              }}
+              className="exam-btn exam-btn-danger"
             >
               Submit anyway
             </button>
 
             <button
               onClick={() => setConfirmSubmit(false)}
-              style={{ padding: "8px 12px", borderRadius: 8 }}
+              className="exam-btn"
             >
               Cancel
             </button>
@@ -506,7 +504,7 @@ export default function QuestionPage() {
             <div style={{ marginTop: 16 }}>
               <button
                 onClick={() => setShowHint((v) => !v)}
-                style={{ padding: "8px 12px", borderRadius: 8 }}
+                className="exam-btn"
               >
                 {showHint ? "Hide Hint" : "Show Hint"}
               </button>

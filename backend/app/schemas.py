@@ -13,6 +13,7 @@ AttemptMode = Literal["practice", "timed"]
 class AttemptStartIn(BaseModel):
     mode: AttemptMode
     exam_name: str | None = None
+    topics: list[str] | None = None
     question_count: int = Field(default=150, ge=1, le=300)
     # Only used for timed mode; if omitted, backend default will apply
     time_limit_seconds: int | None = Field(default=None, ge=60)

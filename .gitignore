@@ -31,5 +31,6 @@ cookies.txt
 *.cookies
 
 # VS Code / Cursor
+frontend/.vscode/settings.json
 .vscode/*
 !.vscode/settings.json
